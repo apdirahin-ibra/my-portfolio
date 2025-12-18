@@ -140,6 +140,27 @@ After adding environment variables:
 
 ---
 
+## Step 7: Your Website URL
+
+### "Why does my link look like random numbers?"
+If your link looks like `https://b0560260.my-portfolio.pages.dev`, you are looking at a **Preview Deployment** (a specific version of your site).
+
+**To get your clean Production URL:**
+1. Go to your Cloudflare Pages Project page.
+2. Look at the top under "Domains".
+3. Your main link will be: `https://your-project-name.pages.dev`.
+
+### "How do I change the name?"
+If you want to change `my-portfolio-aen.pages.dev` to `abdirahim.pages.dev`:
+
+1. **Go to Settings** -> **General** in your Cloudflare project.
+2. **Edit Project Name**.
+3. Change it to your desired name (e.g., `abdirahim-portfolio`).
+4. Your new URL will be `https://abdirahim-portfolio.pages.dev`.
+
+---
+
+
 ## Step 8: Custom Domain (Optional)
 
 To use your own domain:
