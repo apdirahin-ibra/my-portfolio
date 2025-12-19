@@ -228,5 +228,4 @@ export const EXPERIENCE: ExperienceItem[] = [
 export const SOCIAL_LINKS: SocialLink[] = [
   { platform: 'GitHub', url: 'https://github.com/harazi3868', icon: Github },
   { platform: 'LinkedIn', url: 'https://www.linkedin.com/in/abdirahin-ibarahim-mowliid-b18277326', icon: Linkedin },
-  { platform: 'WhatsApp', url: 'https://wa.me/252617705363', icon: MessageCircle },
 ];
