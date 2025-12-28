@@ -226,6 +226,6 @@ export const EXPERIENCE: ExperienceItem[] = [
 ];
 
 export const SOCIAL_LINKS: SocialLink[] = [
-  { platform: 'GitHub', url: 'https://github.com/harazi3868', icon: Github },
+  { platform: 'GitHub', url: 'https://github.com/apdirahin-ibra', icon: Github },
   { platform: 'LinkedIn', url: 'https://www.linkedin.com/in/abdirahin-ibarahim-mowliid-b18277326', icon: Linkedin },
 ];
