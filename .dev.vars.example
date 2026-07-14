@@ -1,0 +1,4 @@
+ADMIN_PASSWORD=replace-with-a-long-unique-password
+SESSION_SECRET=replace-with-at-least-32-random-characters
+CONTACT_EMAIL=apdirahiimipraahim@gmail.com
+RESEND_API_KEY=optional-resend-api-key

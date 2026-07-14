@@ -1,20 +1,7 @@
 import React from 'react';
-import Navbar from './components/Navbar';
-import Home from './pages/Home';
-import Footer from './components/Footer';
-import WhatsAppButton from './components/WhatsAppButton';
+import AdminPanel from './components/AdminPanel';
+import PortfolioSite from './components/PortfolioSite';
 
-const App: React.FC = () => {
-  return (
-    <div className="min-h-screen flex flex-col font-sans text-slate-800 bg-slate-50">
-      <Navbar />
-      <main className="flex-grow">
-        <Home />
-      </main>
-      <Footer />
-      <WhatsAppButton />
-    </div>
-  );
-};
-
-export default App;
+export default function App() {
+  return window.location.pathname.startsWith('/admin') ? <AdminPanel /> : <PortfolioSite />;
+}
