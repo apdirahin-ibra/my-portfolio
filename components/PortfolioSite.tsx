@@ -1,12 +1,15 @@
-import React, { FormEvent, useEffect, useMemo, useState } from 'react';
+import React, { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowDown,
   ArrowRight,
+  ArrowUp,
   ArrowUpRight,
+  Building2,
   Check,
   ChevronLeft,
   ChevronRight,
+  Code2,
   Download,
   Github,
   Linkedin,
@@ -14,87 +17,136 @@ import {
   MapPin,
   Menu,
   MessageCircle,
+  Moon,
+  Network,
   Phone,
+  Sun,
   X,
 } from 'lucide-react';
 import { DEFAULT_CONTENT } from '../data/defaultContent';
 import type { PortfolioContent, Project } from '../types';
 
-const navItems = [
-  ['About', 'about'],
+type Theme = 'dark' | 'light';
+
+const navigation = [
   ['Work', 'work'],
   ['Expertise', 'expertise'],
-  ['Journey', 'journey'],
+  ['About', 'about'],
+  ['Experience', 'experience'],
   ['Contact', 'contact'],
-];
+] as const;
 
 const reveal = {
-  initial: { opacity: 0, y: 28 },
+  initial: { opacity: 0, y: 34 },
   whileInView: { opacity: 1, y: 0 },
-  viewport: { once: true, amount: 0.14 },
-  transition: { duration: 0.65, ease: [0.22, 1, 0.36, 1] as const },
+  viewport: { once: true, amount: 0.12 },
+  transition: { duration: 0.72, ease: [0.22, 1, 0.36, 1] as const },
 };
 
-function SectionIntro({ index, label, title, copy }: { index: string; label: string; title: string; copy?: string }) {
+function getInitialTheme(): Theme {
+  if (typeof window === 'undefined') return 'dark';
+  const saved = window.localStorage.getItem('abdirahin-portfolio-theme-v1');
+  if (saved === 'dark' || saved === 'light') return saved;
+  return 'dark';
+}
+
+function ThemeButton({ theme, onToggle }: { theme: Theme; onToggle: () => void }) {
+  const next = theme === 'dark' ? 'light' : 'dark';
   return (
-    <motion.div className="section-intro" {...reveal}>
-      <div className="section-kicker"><span>{index}</span>{label}</div>
-      <h2>{title}</h2>
-      {copy && <p>{copy}</p>}
-    </motion.div>
+    <button
+      className="pf-theme-toggle"
+      type="button"
+      onClick={onToggle}
+      aria-label={`Switch to ${next} mode`}
+      aria-pressed={theme === 'light'}
+      title={`Switch to ${next} mode`}
+    >
+      <span className={theme === 'light' ? 'is-active' : ''}><Sun aria-hidden="true" /></span>
+      <span className={theme === 'dark' ? 'is-active' : ''}><Moon aria-hidden="true" /></span>
+    </button>
   );
 }
 
 function ProjectModal({ project, onClose }: { project: Project; onClose: () => void }) {
   const images = project.galleryImages?.length ? project.galleryImages : [project.imageUrl];
   const [activeImage, setActiveImage] = useState(0);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
+    const dialog = dialogRef.current;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const backgroundElements = Array.from(document.querySelectorAll<HTMLElement>('.pf-header, .pf-site > main, .pf-footer, .pf-whatsapp'));
+    const handleKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
-      if (event.key === 'ArrowRight') setActiveImage((value) => (value + 1) % images.length);
-      if (event.key === 'ArrowLeft') setActiveImage((value) => (value - 1 + images.length) % images.length);
+      if (event.key === 'ArrowRight') setActiveImage((index) => (index + 1) % images.length);
+      if (event.key === 'ArrowLeft') setActiveImage((index) => (index - 1 + images.length) % images.length);
+      if (event.key === 'Tab' && dialog) {
+        const focusable = Array.from(dialog.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+        if (focusable.length === 0) {
+          event.preventDefault();
+          dialog.focus();
+          return;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
     };
+    const focusFrame = window.requestAnimationFrame(() => {
+      (dialog?.querySelector<HTMLElement>('.pf-modal-close') ?? dialog)?.focus();
+    });
+    backgroundElements.forEach((element) => element.setAttribute('inert', ''));
     document.body.classList.add('modal-open');
-    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keydown', handleKey);
     return () => {
+      window.cancelAnimationFrame(focusFrame);
+      backgroundElements.forEach((element) => element.removeAttribute('inert'));
       document.body.classList.remove('modal-open');
-      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keydown', handleKey);
+      previouslyFocused?.focus();
     };
   }, [images.length, onClose]);
 
   return (
-    <motion.div className="project-modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
+    <motion.div className="pf-modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
       <motion.div
-        className="project-modal"
+        ref={dialogRef}
+        className="pf-modal"
         role="dialog"
         aria-modal="true"
-        aria-label={`${project.title} project details`}
-        initial={{ opacity: 0, y: 40, scale: 0.98 }}
+        aria-labelledby={`project-modal-title-${project.id}`}
+        tabIndex={-1}
+        initial={{ opacity: 0, y: 44, scale: 0.985 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 24, scale: 0.98 }}
-        transition={{ duration: 0.35 }}
+        exit={{ opacity: 0, y: 28, scale: 0.985 }}
+        transition={{ duration: 0.34 }}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <button className="modal-close" type="button" onClick={onClose} aria-label="Close project details"><X /></button>
-        <div className="modal-visual">
-          <img src={images[activeImage]} alt={`${project.title} view ${activeImage + 1}`} />
+        <button className="pf-modal-close" type="button" onClick={onClose} aria-label="Close project details"><X /></button>
+        <div className="pf-modal-media">
+          <img src={images[activeImage]} alt={`${project.title} project view ${activeImage + 1}`} />
           {images.length > 1 && (
-            <div className="modal-controls">
-              <button type="button" aria-label="Previous image" onClick={() => setActiveImage((activeImage - 1 + images.length) % images.length)}><ChevronLeft /></button>
+            <div className="pf-modal-controls">
+              <button type="button" onClick={() => setActiveImage((activeImage - 1 + images.length) % images.length)} aria-label="Previous project image"><ChevronLeft /></button>
               <span>{String(activeImage + 1).padStart(2, '0')} / {String(images.length).padStart(2, '0')}</span>
-              <button type="button" aria-label="Next image" onClick={() => setActiveImage((activeImage + 1) % images.length)}><ChevronRight /></button>
+              <button type="button" onClick={() => setActiveImage((activeImage + 1) % images.length)} aria-label="Next project image"><ChevronRight /></button>
             </div>
           )}
         </div>
-        <div className="modal-copy">
-          <span className="project-meta">{project.category} · {project.year}</span>
-          <h3>{project.title}</h3>
+        <div className="pf-modal-copy">
+          <div className="pf-eyebrow">{project.category} · {project.year}</div>
+          <h2 id={`project-modal-title-${project.id}`}>{project.title}</h2>
           <p>{project.description}</p>
-          <div className="tag-row">{project.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
-          <div className="modal-actions">
-            {project.demoUrl && <a className="button button-light" href={project.demoUrl} target="_blank" rel="noreferrer">Visit live site <ArrowUpRight /></a>}
-            {project.githubUrl && <a className="text-link text-link-light" href={project.githubUrl} target="_blank" rel="noreferrer">View source <Github /></a>}
+          <div className="pf-tags">{project.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
+          <div className="pf-modal-actions">
+            {project.demoUrl && <a className="pf-button pf-button-accent" href={project.demoUrl} target="_blank" rel="noreferrer">View live project <ArrowUpRight /></a>}
+            {project.githubUrl && <a className="pf-text-link" href={project.githubUrl} target="_blank" rel="noreferrer">Source code <Github /></a>}
           </div>
         </div>
       </motion.div>
@@ -104,10 +156,27 @@ function ProjectModal({ project, onClose }: { project: Project; onClose: () => v
 
 export default function PortfolioSite() {
   const [content, setContent] = useState<PortfolioContent>(DEFAULT_CONTENT);
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showAllProjects, setShowAllProjects] = useState(false);
   const [contactState, setContactState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+
+  useEffect(() => {
+    document.documentElement.style.colorScheme = theme;
+    window.localStorage.setItem('abdirahin-portfolio-theme-v1', theme);
+    const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (themeColor) themeColor.content = theme === 'dark' ? '#070e16' : '#f3eee5';
+    return () => { document.documentElement.style.removeProperty('color-scheme'); };
+  }, [theme]);
+
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 28);
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -121,9 +190,14 @@ export default function PortfolioSite() {
     return () => controller.abort();
   }, []);
 
-  const featuredProjects = useMemo(() => content.projects.filter((project) => project.featured).slice(0, 3), [content.projects]);
-  const visibleProjects = showAllProjects ? content.projects : featuredProjects.length ? featuredProjects : content.projects.slice(0, 3);
+  const featuredProjects = useMemo(() => {
+    const featured = content.projects.filter((project) => project.featured);
+    return featured.length ? featured : content.projects.slice(0, 3);
+  }, [content.projects]);
+  const visibleProjects = showAllProjects ? content.projects : featuredProjects.slice(0, 3);
   const { profile } = content;
+  const heroHeadline = profile.headline.trim();
+  const heroHeadlineHasDot = heroHeadline.endsWith('.');
 
   const scrollTo = (id: string) => {
     setMenuOpen(false);
@@ -132,16 +206,15 @@ export default function PortfolioSite() {
 
   const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setContactState('sending');
     const form = event.currentTarget;
-    const formData = new FormData(form);
+    setContactState('sending');
     try {
       const response = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(Object.fromEntries(formData.entries())),
+        body: JSON.stringify(Object.fromEntries(new FormData(form).entries())),
       });
-      if (!response.ok) throw new Error('Request failed');
+      if (!response.ok) throw new Error('Message failed');
       form.reset();
       setContactState('sent');
     } catch {
@@ -150,192 +223,211 @@ export default function PortfolioSite() {
   };
 
   return (
-    <div className="site-shell">
-      <header className="site-header">
-        <a className="brand" href="#top" onClick={(event) => { event.preventDefault(); scrollTo('top'); }} aria-label={`${profile.shortName} home`}>
-          <span>AI</span><strong>{profile.shortName}.</strong>
+    <div className="pf-site" id="top" data-theme={theme}>
+      <header className={`pf-header ${scrolled ? 'is-scrolled' : ''}`}>
+        <a className="pf-brand" href="#top" onClick={(event) => { event.preventDefault(); scrollTo('top'); }} aria-label={`${profile.name} home`}>
+          <span>AI</span><strong>{profile.name}</strong>
         </a>
-        <nav className="desktop-nav" aria-label="Primary navigation">
-          {navItems.map(([label, id]) => <a key={id} href={`#${id}`} onClick={(event) => { event.preventDefault(); scrollTo(id); }}>{label}</a>)}
+        <nav className="pf-nav" aria-label="Primary navigation">
+          {navigation.map(([label, id]) => <a key={id} href={`#${id}`} onClick={(event) => { event.preventDefault(); scrollTo(id); }}>{label}</a>)}
         </nav>
-        <a className="header-cta" href={`mailto:${profile.email}`}>Start a project <ArrowUpRight /></a>
-        <button className="menu-button" type="button" onClick={() => setMenuOpen(!menuOpen)} aria-expanded={menuOpen} aria-label="Toggle menu">{menuOpen ? <X /> : <Menu />}</button>
+        <div className="pf-header-actions">
+          <ThemeButton theme={theme} onToggle={() => setTheme(theme === 'dark' ? 'light' : 'dark')} />
+          <a className="pf-header-cta" href="#contact" onClick={(event) => { event.preventDefault(); scrollTo('contact'); }}>Start a project <ArrowUpRight /></a>
+          <button className="pf-menu-button" type="button" onClick={() => setMenuOpen(!menuOpen)} aria-expanded={menuOpen} aria-label="Toggle navigation">{menuOpen ? <X /> : <Menu />}</button>
+        </div>
       </header>
 
       <AnimatePresence>
         {menuOpen && (
-          <motion.div className="mobile-menu" initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }}>
-            {navItems.map(([label, id], index) => (
-              <a key={id} href={`#${id}`} onClick={(event) => { event.preventDefault(); scrollTo(id); }}><span>0{index + 1}</span>{label}<ArrowRight /></a>
-            ))}
-          </motion.div>
+          <motion.nav className="pf-mobile-nav" initial={{ opacity: 0, y: -18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -18 }} aria-label="Mobile navigation">
+            {navigation.map(([label, id], index) => <a key={id} href={`#${id}`} onClick={(event) => { event.preventDefault(); scrollTo(id); }}><span>0{index + 1}</span>{label}<ArrowRight /></a>)}
+          </motion.nav>
         )}
       </AnimatePresence>
 
       <main>
-        <section className="hero" id="top">
-          <div className="hero-orbit hero-orbit-one" />
-          <div className="hero-orbit hero-orbit-two" />
-          <motion.div className="hero-copy" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}>
-            <div className="availability"><span />{profile.availability}</div>
-            <p className="hero-eyebrow">{profile.eyebrow}</p>
-            <h1>{profile.headline}</h1>
-            <p className="hero-intro">{profile.intro}</p>
-            <div className="hero-actions">
-              <button className="button button-accent" type="button" onClick={() => scrollTo('work')}>Explore selected work <ArrowDown /></button>
-              <a className="text-link text-link-light" href={profile.cvUrl} download>Download résumé <Download /></a>
+        <section className="pf-hero">
+          <motion.div className="pf-hero-copy" initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75 }}>
+            <div className="pf-availability"><span />{profile.availability}</div>
+            <p className="pf-hero-specialties">{profile.eyebrow}</p>
+            <h1>
+              {heroHeadlineHasDot ? heroHeadline.slice(0, -1) : heroHeadline}
+              {heroHeadlineHasDot && <em>.</em>}
+            </h1>
+            <p className="pf-hero-intro">{profile.intro}</p>
+            <div className="pf-hero-actions">
+              <button className="pf-button pf-button-accent" type="button" onClick={() => scrollTo('work')}>Explore selected work <ArrowRight /></button>
+              <a className="pf-text-link" href={profile.cvUrl} download>Download résumé <Download /></a>
+            </div>
+            <div className="pf-trust">
+              <span>Trusted by teams & organizations</span>
+              <div>
+                <strong><Building2 />Somali National<br />Women Organization</strong>
+                <strong><Network />Kunshilin</strong>
+                <strong><Code2 />IoT Stack<br />Solutions</strong>
+              </div>
             </div>
           </motion.div>
 
-          <motion.div className="hero-portrait-wrap" initial={{ opacity: 0, x: 36 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8, delay: 0.1 }}>
-            <div className="portrait-frame">
-              <img src={profile.portrait} alt={`${profile.name}, ${profile.role}`} fetchPriority="high" />
-              <div className="portrait-sheen" />
-            </div>
-            <div className="portrait-label"><small>Based in</small><strong>{profile.location}</strong></div>
-            <div className="portrait-code">01 / 04</div>
+          <motion.div className="pf-hero-art" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.85, delay: 0.08 }}>
+            <img
+              src={profile.portrait || '/images/myimage.jpeg'}
+              onError={(event) => { event.currentTarget.src = '/images/myimage.jpeg'; }}
+              alt={`${profile.name}, ${profile.role}`}
+              fetchPriority="high"
+            />
+            <div className="pf-hero-folio"><span>Selected portrait</span><strong>01</strong></div>
           </motion.div>
 
-          <div className="hero-bottom">
-            <div><span>Currently</span><strong>{profile.role}</strong></div>
-            <button type="button" onClick={() => scrollTo('about')} aria-label="Scroll to about"><ArrowDown /></button>
+          <button className="pf-scroll-cue" type="button" onClick={() => scrollTo('about')} aria-label="Scroll to profile"><ArrowDown /></button>
+        </section>
+
+        <section className="pf-proof" aria-label="Career highlights">
+          <div className="pf-proof-lead"><strong>Proof, not</strong><span>promises.</span></div>
+          <div className="pf-proof-stats">
+            {content.stats.map((stat, index) => <div className="pf-proof-stat" key={`${stat.value}-${stat.label}-${index}`}><strong>{stat.value}</strong><span>{stat.label}</span></div>)}
           </div>
         </section>
 
-        <section className="stats-strip" aria-label="Career highlights">
-          <span className="stats-lead">Proof, not promises.</span>
-          {content.stats.map((stat) => <div key={stat.label}><strong>{stat.value}</strong><span>{stat.label}</span></div>)}
+        <section className="pf-about" id="about">
+          <motion.div className="pf-section-label" {...reveal}><span />Philosophy</motion.div>
+          <div className="pf-about-grid">
+            <motion.div {...reveal}>
+              <h2>Strategy, craft, and code—<em>in one place.</em></h2>
+              <p className="pf-about-lead">I build at the intersection of <mark>useful technology</mark> and thoughtful user experience.</p>
+            </motion.div>
+            <motion.div className="pf-about-copy" {...reveal}>
+              <p>{profile.bio}</p>
+              <a className="pf-text-link" href={`mailto:${profile.email}`}>Let’s work together <ArrowUpRight /></a>
+            </motion.div>
+          </div>
+          {content.services.length > 0 && (
+            <div className="pf-services" aria-label="Services">
+              {content.services.map((service) => (
+                <motion.article key={service.id} {...reveal}>
+                  <span>{service.number}</span>
+                  <h3>{service.title}</h3>
+                  <p>{service.description}</p>
+                  <ArrowUpRight aria-hidden="true" />
+                </motion.article>
+              ))}
+            </div>
+          )}
         </section>
 
-        <section className="section section-cream" id="about">
-          <SectionIntro index="01" label="A little about me" title="Strategy, craft, and code—in one place." />
-          <motion.div className="about-grid" {...reveal}>
-            <p className="about-lead">I build at the intersection of <em>useful technology</em> and thoughtful user experience.</p>
-            <div className="about-detail">
-              <p>{profile.bio}</p>
-              <a className="text-link" href={`mailto:${profile.email}`}>Let’s work together <ArrowUpRight /></a>
-            </div>
+        <section className="pf-work" id="work">
+          <motion.div className="pf-work-heading" {...reveal}>
+            <div><div className="pf-section-label"><span />Selected work</div><h2>Projects with<br />a job to do.</h2></div>
+            <p>A selection of web platforms and applied AI systems designed around real users, real constraints, and measurable outcomes.</p>
           </motion.div>
-          <div className="services-grid">
-            {content.services.map((service, index) => (
-              <motion.article key={service.id} className="service-card" {...reveal} transition={{ ...reveal.transition, delay: index * 0.08 }}>
-                <span>{service.number}</span><h3>{service.title}</h3><p>{service.description}</p><ArrowUpRight />
+
+          <div className="pf-case-list">
+            {visibleProjects.map((project, index) => (
+              <motion.article className="pf-case" key={project.id} {...reveal}>
+                <span className="pf-case-number">{String(index + 1).padStart(2, '0')}</span>
+                <div className="pf-case-copy">
+                  <span className="pf-case-type">{project.category}</span>
+                  <h3>{project.title}</h3>
+                  <p>{project.description}</p>
+                  <span className="pf-case-link">View case study <ArrowUpRight /></span>
+                  <dl>
+                    <div><dt>Role</dt><dd>{project.category}</dd></div>
+                    <div><dt>Year</dt><dd>{project.year}</dd></div>
+                    <div><dt>Stack</dt><dd>{project.tags.slice(0, 3).join(', ')}</dd></div>
+                  </dl>
+                </div>
+                <div className="pf-case-visual"><img src={project.imageUrl} alt={`${project.title} interface`} loading="lazy" /></div>
+                <button className="pf-case-hit" type="button" onClick={() => setSelectedProject(project)} aria-label={`Open ${project.title} case study`} />
+              </motion.article>
+            ))}
+          </div>
+
+          {content.projects.length > 3 && (
+            <button className="pf-all-projects" type="button" onClick={() => setShowAllProjects(!showAllProjects)}>
+              {showAllProjects ? 'Show selected projects' : `View all ${content.projects.length} projects`} <ArrowRight />
+            </button>
+          )}
+        </section>
+
+        <section className="pf-expertise" id="expertise">
+          <motion.div className="pf-expertise-intro" {...reveal}>
+            <div className="pf-section-label"><span />Capabilities</div>
+            <h2>A broad toolkit,<br />applied with focus.</h2>
+            <p>From interface to infrastructure, I choose the right tool for the problem—not the trend.</p>
+          </motion.div>
+          <div className="pf-skill-groups">
+            {content.skillGroups.map((group, index) => (
+              <motion.article key={group.id} {...reveal}>
+                <span>0{index + 1}</span>
+                <div><h3>{group.title}</h3><p>{group.description}</p><div className="pf-tags">{group.skills.map((skill) => <small key={skill}>{skill}</small>)}</div></div>
               </motion.article>
             ))}
           </div>
         </section>
 
-        <section className="section section-work" id="work">
-          <SectionIntro index="02" label="Selected work" title="Projects with a job to do." copy="A selection of web platforms and applied AI systems designed around real users, real constraints, and measurable outcomes." />
-          <div className="project-grid">
-            {visibleProjects.map((project, index) => (
-              <motion.button
-                type="button"
-                key={project.id}
-                className={`project-card project-card-${index % 3}`}
-                onClick={() => setSelectedProject(project)}
-                {...reveal}
-              >
-                <div className="project-image"><img src={project.imageUrl} alt="" loading="lazy" /><div className="project-open"><ArrowUpRight /></div></div>
-                <div className="project-card-copy">
-                  <span className="project-meta">{project.category} · {project.year}</span>
-                  <h3>{project.title}</h3>
-                  <p>{project.description}</p>
-                  <div className="tag-row">{project.tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}</div>
-                </div>
-              </motion.button>
-            ))}
-          </div>
-          {content.projects.length > 3 && (
-            <button className="button button-outline project-toggle" type="button" onClick={() => setShowAllProjects(!showAllProjects)}>
-              {showAllProjects ? 'Show selected work' : `View all ${content.projects.length} projects`} <ArrowRight />
-            </button>
-          )}
-        </section>
-
-        <section className="section section-dark" id="expertise">
-          <SectionIntro index="03" label="Expertise" title="A broad toolkit, applied with focus." />
-          <div className="skills-layout">
-            <motion.div className="skills-statement" {...reveal}>
-              <p>From interface to infrastructure, I choose the right tool for the problem—not the trend.</p>
-              <div className="signal"><span /><span /><span /><span /><span /><span /></div>
-            </motion.div>
-            <div className="skill-groups">
-              {content.skillGroups.map((group, index) => (
-                <motion.article className="skill-group" key={group.id} {...reveal}>
-                  <span className="skill-number">0{index + 1}</span>
-                  <div><h3>{group.title}</h3><p>{group.description}</p><div className="skill-list">{group.skills.map((skill) => <span key={skill}>{skill}</span>)}</div></div>
-                </motion.article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="section section-cream" id="journey">
-          <SectionIntro index="04" label="Journey" title="Experience built by doing." copy="Roles where I have shipped products, supported teams, and turned emerging technology into practical results." />
-          <div className="timeline">
+        <section className="pf-experience" id="experience">
+          <motion.div className="pf-experience-heading" {...reveal}>
+            <div className="pf-section-label"><span />Experience</div>
+            <h2>Experience built<br />by doing.</h2>
+            <p>Roles where I have shipped products, supported teams, and turned emerging technology into practical results.</p>
+          </motion.div>
+          <div className="pf-experience-list">
             {content.experience.map((item, index) => (
-              <motion.article className="timeline-item" key={item.id} {...reveal}>
-                <div className="timeline-index">{String(index + 1).padStart(2, '0')}</div>
-                <div className="timeline-period">{item.period}<small>{item.location}</small></div>
-                <div className="timeline-role"><h3>{item.role}</h3><strong>{item.company}</strong></div>
-                <div className="timeline-detail">
-                  {item.imageUrl && <img src={item.imageUrl} alt="" loading="lazy" />}
-                  <p>{item.description}</p><div className="tag-row">{item.skills.map((skill) => <span key={skill}>{skill}</span>)}</div>
-                </div>
+              <motion.article key={item.id} {...reveal}>
+                <span className="pf-experience-index">{String(index + 1).padStart(2, '0')}</span>
+                <div className="pf-experience-time"><strong>{item.period}</strong><span>{item.location}</span></div>
+                <div className="pf-experience-role"><h3>{item.role}</h3><span>{item.company}</span></div>
+                <div className="pf-experience-copy">{item.imageUrl && <img className="pf-experience-image" src={item.imageUrl} alt={`${item.company || item.role} work`} loading="lazy" />}<p>{item.description}</p><div className="pf-tags">{item.skills.map((skill) => <small key={skill}>{skill}</small>)}</div></div>
               </motion.article>
             ))}
           </div>
 
           {content.education.length > 0 && (
-            <div className="education-block">
-              <h3>Education</h3>
-              {content.education.map((item) => (
-                <motion.article className="education-card" key={item.id} {...reveal}>
-                  {item.imageUrl && <img src={item.imageUrl} alt="" loading="lazy" />}
-                  <div><span>{item.period}</span><h4>{item.degree}</h4><strong>{item.institution}</strong><p>{item.description}</p></div>
-                </motion.article>
-              ))}
+            <div className="pf-education">
+              <div className="pf-section-label"><span />Education</div>
+              {content.education.map((item) => <article key={item.id}>{item.imageUrl && <img src={item.imageUrl} alt="" />}<div><span>{item.period}</span><h3>{item.degree}</h3><strong>{item.institution}</strong><p>{item.description}</p></div></article>)}
             </div>
           )}
         </section>
 
-        <section className="contact-section" id="contact">
-          <div className="contact-heading">
-            <span>Have a project in mind?</span>
-            <h2>Let’s make something<br /><em>remarkable.</em></h2>
-            <p>Tell me what you’re building, where you’re stuck, or the outcome you want. I’ll reply with a clear next step.</p>
-            <div className="contact-links">
+        <section className="pf-contact" id="contact">
+          <motion.div className="pf-contact-copy" {...reveal}>
+            <div className="pf-section-label"><span />Let’s connect</div>
+            <h2>Let’s build<br />what’s <em>next.</em></h2>
+            <p>Tell me about your idea, your team, or the problem you want to solve. I’ll reply with a clear next step.</p>
+            <div>
               <a href={`mailto:${profile.email}`}><Mail />{profile.email}</a>
               <a href={`tel:${profile.phone.replace(/\s/g, '')}`}><Phone />{profile.phone}</a>
               <span><MapPin />{profile.location}</span>
             </div>
-          </div>
-          <form className="contact-form" onSubmit={sendMessage}>
-            <div className="field-row"><label>Name<input name="name" required placeholder="Your name" /></label><label>Email<input name="email" type="email" required placeholder="you@example.com" /></label></div>
-            <label>What do you need?<select name="projectType" defaultValue=""><option value="" disabled>Select a project type</option><option>Website or web application</option><option>AI or machine learning</option><option>IT consultancy</option><option>Something else</option></select></label>
-            <label>Project details<textarea name="message" required rows={5} placeholder="A few details about your idea, goals, and timeline…" /></label>
-            <button className="button button-accent" type="submit" disabled={contactState === 'sending'}>
-              {contactState === 'sending' ? 'Sending…' : contactState === 'sent' ? <><Check /> Message sent</> : <>Send enquiry <ArrowUpRight /></>}
+          </motion.div>
+          <motion.form className="pf-contact-form" onSubmit={sendMessage} {...reveal}>
+            <div className="pf-form-row">
+              <label>Your name<input name="name" required placeholder="Your name" /></label>
+              <label>Email address<input name="email" type="email" required placeholder="you@example.com" /></label>
+            </div>
+            <label>Project type<select name="projectType" defaultValue=""><option value="" disabled>Select a project type</option><option>Website or web application</option><option>AI or machine learning</option><option>IT consultancy</option><option>Something else</option></select></label>
+            <label>Tell me about your project<textarea name="message" required rows={5} placeholder="A few details about your idea, goals, and timeline…" /></label>
+            <button className="pf-button pf-button-accent" type="submit" disabled={contactState === 'sending'}>
+              {contactState === 'sending' ? 'Sending…' : contactState === 'sent' ? <><Check /> Message sent</> : <>Send message <ArrowUpRight /></>}
             </button>
-            {contactState === 'error' && <p className="form-error">Something went wrong. Please email me directly instead.</p>}
-          </form>
+            <div className="pf-form-status" aria-live="polite" aria-atomic="true">
+              {contactState === 'sent' && <p>Your message was sent successfully.</p>}
+              {contactState === 'error' && <p className="pf-form-error">The message could not be sent. Please email me directly.</p>}
+            </div>
+          </motion.form>
         </section>
       </main>
 
-      <footer className="site-footer">
-        <div className="footer-brand"><span>AI</span><strong>{profile.shortName}.</strong></div>
-        <p>Designing and engineering useful digital products from Mogadishu to the world.</p>
-        <div className="footer-socials">
-          <a href={profile.github} target="_blank" rel="noreferrer" aria-label="GitHub"><Github /></a>
-          <a href={profile.linkedin} target="_blank" rel="noreferrer" aria-label="LinkedIn"><Linkedin /></a>
-          <a href={`mailto:${profile.email}`} aria-label="Email"><Mail /></a>
-        </div>
-        <div className="footer-bottom"><span>© {new Date().getFullYear()} {profile.name}</span><a href="/admin">Admin</a><button type="button" onClick={() => scrollTo('top')}>Back to top <ArrowUpRight /></button></div>
+      <footer className="pf-footer">
+        <div><a className="pf-brand" href="#top" onClick={(event) => { event.preventDefault(); scrollTo('top'); }}><span>AI</span><strong>{profile.name}</strong></a><p>Building intelligent digital products that solve real problems.</p></div>
+        <nav>{navigation.map(([label, id]) => <a key={id} href={`#${id}`} onClick={(event) => { event.preventDefault(); scrollTo(id); }}>{label}</a>)}</nav>
+        <div className="pf-socials"><a href={profile.github} target="_blank" rel="noreferrer" aria-label="GitHub"><Github /></a><a href={profile.linkedin} target="_blank" rel="noreferrer" aria-label="LinkedIn"><Linkedin /></a><a href={`mailto:${profile.email}`} aria-label="Email"><Mail /></a></div>
+        <div className="pf-footer-bottom"><span>© {new Date().getFullYear()} {profile.name}</span><a href="/admin">Admin</a><button type="button" onClick={() => scrollTo('top')}>Back to top <ArrowUp /></button></div>
       </footer>
 
-      <a className="whatsapp" href={`https://wa.me/${profile.whatsapp}`} target="_blank" rel="noreferrer" aria-label="Chat on WhatsApp"><MessageCircle /></a>
-
+      <a className="pf-whatsapp" href={`https://wa.me/${profile.whatsapp}`} target="_blank" rel="noreferrer" aria-label="Chat on WhatsApp"><MessageCircle /></a>
       <AnimatePresence>{selectedProject && <ProjectModal project={selectedProject} onClose={() => setSelectedProject(null)} />}</AnimatePresence>
     </div>
   );
