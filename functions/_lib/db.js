@@ -15,6 +15,14 @@ export const ensureSchema = async (db) => {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`),
     db.prepare('CREATE INDEX IF NOT EXISTS contact_messages_created_idx ON contact_messages (created_at DESC)'),
+    db.prepare(`CREATE TABLE IF NOT EXISTS portfolio_media (
+      id TEXT PRIMARY KEY,
+      data BLOB NOT NULL,
+      content_type TEXT NOT NULL,
+      original_name TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`),
+    db.prepare('CREATE INDEX IF NOT EXISTS portfolio_media_created_idx ON portfolio_media (created_at DESC)'),
   ]);
 };
 
@@ -55,4 +63,17 @@ export const listMessages = async (db) => {
     status: row.status,
     createdAt: row.created_at,
   }));
+};
+
+export const saveMedia = async (db, media) => {
+  await ensureSchema(db);
+  await db.prepare(`INSERT INTO portfolio_media (id, data, content_type, original_name)
+    VALUES (?, ?, ?, ?)`)
+    .bind(media.id, media.data, media.contentType, media.originalName)
+    .run();
+};
+
+export const getMedia = async (db, id) => {
+  await ensureSchema(db);
+  return db.prepare('SELECT data, content_type FROM portfolio_media WHERE id = ?').bind(id).first();
 };

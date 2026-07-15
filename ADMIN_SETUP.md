@@ -2,14 +2,13 @@
 
 The portfolio includes a protected admin workspace at `/admin`. It manages the public profile, projects, experience, education, skills, services, statistics, images, and contact enquiries.
 
-## Cloudflare bindings
+## Cloudflare binding
 
-In the Cloudflare Pages project, add these production and preview bindings under **Settings → Bindings**:
+In the Cloudflare Pages project, add this production and preview binding under **Settings → Bindings**:
 
 - A D1 database with the variable name `DB`.
-- An R2 bucket with the variable name `MEDIA`.
 
-The application creates its required D1 tables safely on first use. The matching SQL is also stored in `migrations/0001_portfolio_admin.sql` for review or manual initialization.
+No paid R2 subscription is required. The application creates its required D1 tables safely on first use. The matching SQL is also stored in `migrations/0001_portfolio_admin.sql` and `migrations/0002_d1_media.sql` for review or manual initialization.
 
 ## Secrets and variables
 
@@ -32,4 +31,4 @@ The first publish seeds the database with the portfolio’s current content. Pub
 
 ## Media
 
-Uploaded JPG, PNG, WebP, and GIF files are stored in R2. The upload limit is 8 MB per image. Existing repository images continue to work normally.
+Uploaded JPG, PNG, WebP, and GIF files are stored in the same D1 database as the portfolio content. JPG, PNG, and WebP files are automatically resized and compressed in the browser before upload. Each stored image is limited to 1.5 MB so it remains within D1's free-tier row limit. Existing repository images continue to work normally.

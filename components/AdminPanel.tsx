@@ -37,6 +37,43 @@ const tabs: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'inbox', label: 'Inbox', icon: Inbox },
 ];
 
+const MAX_STORED_IMAGE_BYTES = 1_400_000;
+const MAX_IMAGE_EDGE = 1_800;
+
+const canvasToBlob = (canvas: HTMLCanvasElement, quality: number) => new Promise<Blob>((resolve, reject) => {
+  canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('This image could not be compressed.')), 'image/webp', quality);
+});
+
+async function compressPortfolioImage(file: File) {
+  if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) throw new Error('Use a JPG, PNG, WebP, or GIF image.');
+  if (file.type === 'image/gif') {
+    if (file.size > MAX_STORED_IMAGE_BYTES) throw new Error('Animated GIFs must be smaller than 1.4 MB.');
+    return file;
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = objectUrl;
+    await image.decode();
+    const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(image.naturalWidth, image.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Image compression is unavailable in this browser.');
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    for (const quality of [0.86, 0.76, 0.66, 0.56]) {
+      const blob = await canvasToBlob(canvas, quality);
+      if (blob.size <= MAX_STORED_IMAGE_BYTES) return new File([blob], `${file.name.replace(/\.[^.]+$/, '') || 'portfolio-image'}.webp`, { type: 'image/webp' });
+    }
+    throw new Error('The compressed image is still too large. Choose a smaller image.');
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 function Field({ label, value, onChange, placeholder, type = 'text', help }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; type?: string; help?: string }) {
   return <label className="admin-field"><span>{label}</span><input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />{help && <small>{help}</small>}</label>;
 }
@@ -180,8 +217,9 @@ export default function AdminPanel() {
   const updateProfile = (key: keyof PortfolioContent['profile'], value: string) => update({ ...content, profile: { ...content.profile, [key]: value } });
 
   const uploadImage = async (file: File) => {
+    const optimizedFile = await compressPortfolioImage(file);
     const data = new FormData();
-    data.append('file', file);
+    data.append('file', optimizedFile);
     const response = await fetch('/api/admin/upload', { method: 'POST', body: data });
     const result = await response.json().catch(() => ({})) as { url?: string; message?: string };
     if (!response.ok || !result.url) throw new Error(result.message || 'Upload failed');
