@@ -192,9 +192,10 @@ export default function PortfolioSite() {
 
   const featuredProjects = useMemo(() => {
     const featured = content.projects.filter((project) => project.featured);
-    return featured.length ? featured : content.projects.slice(0, 3);
+    const remaining = content.projects.filter((project) => !project.featured);
+    return [...featured, ...remaining].slice(0, 5);
   }, [content.projects]);
-  const visibleProjects = showAllProjects ? content.projects : featuredProjects.slice(0, 3);
+  const visibleProjects = showAllProjects ? content.projects : featuredProjects;
   const { profile } = content;
   const heroHeadline = profile.headline.trim();
   const heroHeadlineHasDot = heroHeadline.endsWith('.');
