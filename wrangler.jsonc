@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "apdirahin-tech",
+  "compatibility_date": "2026-07-15",
+  "pages_build_output_dir": "./dist",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "apdirahin-portfolio-prod",
+      "database_id": "ff98fe4f-662e-4299-8804-4de1dd23de10",
+      "migrations_dir": "./migrations"
+    }
+  ]
+}
