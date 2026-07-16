@@ -1,5 +1,5 @@
-import React, { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import React, { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowDown,
   ArrowRight,
@@ -43,6 +43,16 @@ const reveal = {
   transition: { duration: 0.72, ease: [0.22, 1, 0.36, 1] as const },
 };
 
+const canonicalProjectTitles: Record<string, string> = {
+  'araday kaaliye': 'Araday Kaaliye',
+  'somali national women organization': 'Somali National Women Organization',
+  'news classification using ml': 'News Classification Using ML',
+  kunshilin: 'Kunshilin',
+  'house property tax management system': 'House Property Tax Management System',
+};
+
+const projectTitle = (title: string) => canonicalProjectTitles[title.trim().toLowerCase()] || title;
+
 function getInitialTheme(): Theme {
   if (typeof window === 'undefined') return 'dark';
   const saved = window.localStorage.getItem('abdirahin-portfolio-theme-v1');
@@ -71,6 +81,8 @@ function ProjectModal({ project, onClose }: { project: Project; onClose: () => v
   const images = project.galleryImages?.length ? project.galleryImages : [project.imageUrl];
   const [activeImage, setActiveImage] = useState(0);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const prefersReducedMotion = useReducedMotion();
+  const title = projectTitle(project.title);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -114,7 +126,7 @@ function ProjectModal({ project, onClose }: { project: Project; onClose: () => v
   }, [images.length, onClose]);
 
   return (
-    <motion.div className="pf-modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
+    <motion.div className="pf-modal-backdrop" initial={prefersReducedMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
       <motion.div
         ref={dialogRef}
         className="pf-modal"
@@ -122,15 +134,15 @@ function ProjectModal({ project, onClose }: { project: Project; onClose: () => v
         aria-modal="true"
         aria-labelledby={`project-modal-title-${project.id}`}
         tabIndex={-1}
-        initial={{ opacity: 0, y: 44, scale: 0.985 }}
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 44, scale: 0.985 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 28, scale: 0.985 }}
-        transition={{ duration: 0.34 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.34 }}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <button className="pf-modal-close" type="button" onClick={onClose} aria-label="Close project details"><X /></button>
         <div className="pf-modal-media">
-          <img src={images[activeImage]} alt={`${project.title} project view ${activeImage + 1}`} />
+          <img src={images[activeImage]} alt={`${title} project view ${activeImage + 1}`} decoding="async" />
           {images.length > 1 && (
             <div className="pf-modal-controls">
               <button type="button" onClick={() => setActiveImage((activeImage - 1 + images.length) % images.length)} aria-label="Previous project image"><ChevronLeft /></button>
@@ -141,7 +153,7 @@ function ProjectModal({ project, onClose }: { project: Project; onClose: () => v
         </div>
         <div className="pf-modal-copy">
           <div className="pf-eyebrow">{project.category} · {project.year}</div>
-          <h2 id={`project-modal-title-${project.id}`}>{project.title}</h2>
+          <h2 id={`project-modal-title-${project.id}`}>{title}</h2>
           <p>{project.description}</p>
           <div className="pf-tags">{project.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
           <div className="pf-modal-actions">
@@ -159,9 +171,13 @@ export default function PortfolioSite() {
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [activeSection, setActiveSection] = useState('top');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showAllProjects, setShowAllProjects] = useState(false);
   const [contactState, setContactState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const prefersReducedMotion = useReducedMotion();
+  const revealProps = prefersReducedMotion ? { initial: false as const } : reveal;
+  const closeProject = useCallback(() => setSelectedProject(null), []);
 
   useEffect(() => {
     document.documentElement.style.colorScheme = theme;
@@ -177,6 +193,30 @@ export default function PortfolioSite() {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (visible?.target.id) setActiveSection(visible.target.id);
+    }, { rootMargin: '-25% 0px -60% 0px', threshold: [0.05, 0.2, 0.5] });
+    navigation.forEach(([, id]) => {
+      const section = document.getElementById(id);
+      if (section) observer.observe(section);
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle('menu-open', menuOpen);
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.classList.remove('menu-open');
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -202,7 +242,7 @@ export default function PortfolioSite() {
 
   const scrollTo = (id: string) => {
     setMenuOpen(false);
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+    document.getElementById(id)?.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth' });
   };
 
   const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
@@ -230,26 +270,26 @@ export default function PortfolioSite() {
           <span>AI</span><strong>{profile.name}</strong>
         </a>
         <nav className="pf-nav" aria-label="Primary navigation">
-          {navigation.map(([label, id]) => <a key={id} href={`#${id}`} onClick={(event) => { event.preventDefault(); scrollTo(id); }}>{label}</a>)}
+          {navigation.map(([label, id]) => <a key={id} className={activeSection === id ? 'is-active' : undefined} href={`#${id}`} aria-current={activeSection === id ? 'location' : undefined} onClick={(event) => { event.preventDefault(); scrollTo(id); }}>{label}</a>)}
         </nav>
         <div className="pf-header-actions">
           <ThemeButton theme={theme} onToggle={() => setTheme(theme === 'dark' ? 'light' : 'dark')} />
           <a className="pf-header-cta" href="#contact" onClick={(event) => { event.preventDefault(); scrollTo('contact'); }}>Start a project <ArrowUpRight /></a>
-          <button className="pf-menu-button" type="button" onClick={() => setMenuOpen(!menuOpen)} aria-expanded={menuOpen} aria-label="Toggle navigation">{menuOpen ? <X /> : <Menu />}</button>
+          <button className="pf-menu-button" type="button" onClick={() => setMenuOpen(!menuOpen)} aria-expanded={menuOpen} aria-controls="mobile-navigation" aria-label={menuOpen ? 'Close navigation' : 'Open navigation'}>{menuOpen ? <X /> : <Menu />}</button>
         </div>
       </header>
 
       <AnimatePresence>
         {menuOpen && (
-          <motion.nav className="pf-mobile-nav" initial={{ opacity: 0, y: -18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -18 }} aria-label="Mobile navigation">
-            {navigation.map(([label, id], index) => <a key={id} href={`#${id}`} onClick={(event) => { event.preventDefault(); scrollTo(id); }}><span>0{index + 1}</span>{label}<ArrowRight /></a>)}
+          <motion.nav id="mobile-navigation" className="pf-mobile-nav" initial={prefersReducedMotion ? false : { opacity: 0, y: -18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -18 }} aria-label="Mobile navigation">
+            {navigation.map(([label, id], index) => <a key={id} className={activeSection === id ? 'is-active' : undefined} href={`#${id}`} aria-current={activeSection === id ? 'location' : undefined} onClick={(event) => { event.preventDefault(); scrollTo(id); }}><span>0{index + 1}</span>{label}<ArrowRight /></a>)}
           </motion.nav>
         )}
       </AnimatePresence>
 
       <main>
         <section className="pf-hero">
-          <motion.div className="pf-hero-copy" initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75 }}>
+          <motion.div className="pf-hero-copy" initial={prefersReducedMotion ? false : { opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: prefersReducedMotion ? 0 : 0.75 }}>
             <div className="pf-availability"><span />{profile.availability}</div>
             <p className="pf-hero-specialties">{profile.eyebrow}</p>
             <h1>
@@ -271,12 +311,13 @@ export default function PortfolioSite() {
             </div>
           </motion.div>
 
-          <motion.div className="pf-hero-art" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.85, delay: 0.08 }}>
+          <motion.div className="pf-hero-art" initial={prefersReducedMotion ? false : { opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: prefersReducedMotion ? 0 : 0.85, delay: prefersReducedMotion ? 0 : 0.08 }}>
             <img
               src={profile.portrait || '/images/myimage.jpeg'}
               onError={(event) => { event.currentTarget.src = '/images/myimage.jpeg'; }}
               alt={`${profile.name}, ${profile.role}`}
               fetchPriority="high"
+              decoding="async"
             />
             <div className="pf-hero-folio"><span>Selected portrait</span><strong>01</strong></div>
           </motion.div>
@@ -292,13 +333,13 @@ export default function PortfolioSite() {
         </section>
 
         <section className="pf-about" id="about">
-          <motion.div className="pf-section-label" {...reveal}><span />Philosophy</motion.div>
+          <motion.div className="pf-section-label" {...revealProps}><span />Philosophy</motion.div>
           <div className="pf-about-grid">
-            <motion.div {...reveal}>
+            <motion.div {...revealProps}>
               <h2>Strategy, craft, and code—<em>in one place.</em></h2>
               <p className="pf-about-lead">I build at the intersection of <mark>useful technology</mark> and thoughtful user experience.</p>
             </motion.div>
-            <motion.div className="pf-about-copy" {...reveal}>
+            <motion.div className="pf-about-copy" {...revealProps}>
               <p>{profile.bio}</p>
               <a className="pf-text-link" href={`mailto:${profile.email}`}>Let’s work together <ArrowUpRight /></a>
             </motion.div>
@@ -306,11 +347,11 @@ export default function PortfolioSite() {
           {content.services.length > 0 && (
             <div className="pf-services" aria-label="Services">
               {content.services.map((service) => (
-                <motion.article key={service.id} {...reveal}>
+                <motion.article key={service.id} {...revealProps}>
                   <span>{service.number}</span>
                   <h3>{service.title}</h3>
                   <p>{service.description}</p>
-                  <ArrowUpRight aria-hidden="true" />
+                  <a className="pf-service-link" href="#contact" onClick={(event) => { event.preventDefault(); scrollTo('contact'); }} aria-label={`Discuss ${service.title}`}><ArrowUpRight aria-hidden="true" /></a>
                 </motion.article>
               ))}
             </div>
@@ -318,19 +359,22 @@ export default function PortfolioSite() {
         </section>
 
         <section className="pf-work" id="work">
-          <motion.div className="pf-work-heading" {...reveal}>
+          <motion.div className="pf-work-heading" {...revealProps}>
             <div><div className="pf-section-label"><span />Selected work</div><h2>Projects with<br />a job to do.</h2></div>
             <p>A selection of web platforms and applied AI systems designed around real users, real constraints, and measurable outcomes.</p>
           </motion.div>
 
           <div className="pf-case-list">
             {visibleProjects.map((project, index) => (
-              <motion.article className="pf-case" key={project.id} {...reveal}>
+              <motion.article className="pf-case" key={project.id} {...revealProps}>
                 <span className="pf-case-number">{String(index + 1).padStart(2, '0')}</span>
                 <div className="pf-case-copy">
                   <span className="pf-case-type">{project.category}</span>
-                  <h3>{project.title}</h3>
+                  <h3>{projectTitle(project.title)}</h3>
                   <p>{project.description}</p>
+                </div>
+                <div className="pf-case-visual"><img src={project.imageUrl} alt={`${projectTitle(project.title)} interface`} loading="lazy" decoding="async" /></div>
+                <div className="pf-case-meta">
                   <span className="pf-case-link">View case study <ArrowUpRight /></span>
                   <dl>
                     <div><dt>Role</dt><dd>{project.category}</dd></div>
@@ -338,13 +382,12 @@ export default function PortfolioSite() {
                     <div><dt>Stack</dt><dd>{project.tags.slice(0, 3).join(', ')}</dd></div>
                   </dl>
                 </div>
-                <div className="pf-case-visual"><img src={project.imageUrl} alt={`${project.title} interface`} loading="lazy" /></div>
-                <button className="pf-case-hit" type="button" onClick={() => setSelectedProject(project)} aria-label={`Open ${project.title} case study`} />
+                <button className="pf-case-hit" type="button" onClick={() => setSelectedProject(project)} aria-label={`Open ${projectTitle(project.title)} case study`} />
               </motion.article>
             ))}
           </div>
 
-          {content.projects.length > 3 && (
+          {content.projects.length > featuredProjects.length && (
             <button className="pf-all-projects" type="button" onClick={() => setShowAllProjects(!showAllProjects)}>
               {showAllProjects ? 'Show selected projects' : `View all ${content.projects.length} projects`} <ArrowRight />
             </button>
@@ -352,14 +395,14 @@ export default function PortfolioSite() {
         </section>
 
         <section className="pf-expertise" id="expertise">
-          <motion.div className="pf-expertise-intro" {...reveal}>
+          <motion.div className="pf-expertise-intro" {...revealProps}>
             <div className="pf-section-label"><span />Capabilities</div>
             <h2>A broad toolkit,<br />applied with focus.</h2>
             <p>From interface to infrastructure, I choose the right tool for the problem—not the trend.</p>
           </motion.div>
           <div className="pf-skill-groups">
             {content.skillGroups.map((group, index) => (
-              <motion.article key={group.id} {...reveal}>
+              <motion.article key={group.id} {...revealProps}>
                 <span>0{index + 1}</span>
                 <div><h3>{group.title}</h3><p>{group.description}</p><div className="pf-tags">{group.skills.map((skill) => <small key={skill}>{skill}</small>)}</div></div>
               </motion.article>
@@ -368,18 +411,18 @@ export default function PortfolioSite() {
         </section>
 
         <section className="pf-experience" id="experience">
-          <motion.div className="pf-experience-heading" {...reveal}>
+          <motion.div className="pf-experience-heading" {...revealProps}>
             <div className="pf-section-label"><span />Experience</div>
             <h2>Experience built<br />by doing.</h2>
             <p>Roles where I have shipped products, supported teams, and turned emerging technology into practical results.</p>
           </motion.div>
           <div className="pf-experience-list">
             {content.experience.map((item, index) => (
-              <motion.article key={item.id} {...reveal}>
+              <motion.article key={item.id} {...revealProps}>
                 <span className="pf-experience-index">{String(index + 1).padStart(2, '0')}</span>
                 <div className="pf-experience-time"><strong>{item.period}</strong><span>{item.location}</span></div>
                 <div className="pf-experience-role"><h3>{item.role}</h3><span>{item.company}</span></div>
-                <div className="pf-experience-copy">{item.imageUrl && <img className="pf-experience-image" src={item.imageUrl} alt={`${item.company || item.role} work`} loading="lazy" />}<p>{item.description}</p><div className="pf-tags">{item.skills.map((skill) => <small key={skill}>{skill}</small>)}</div></div>
+                <div className="pf-experience-copy">{item.imageUrl && <img className="pf-experience-image" src={item.imageUrl} alt={`${item.company || item.role} work`} loading="lazy" decoding="async" />}<p>{item.description}</p><div className="pf-tags">{item.skills.map((skill) => <small key={skill}>{skill}</small>)}</div></div>
               </motion.article>
             ))}
           </div>
@@ -387,13 +430,13 @@ export default function PortfolioSite() {
           {content.education.length > 0 && (
             <div className="pf-education">
               <div className="pf-section-label"><span />Education</div>
-              {content.education.map((item) => <article key={item.id}>{item.imageUrl && <img src={item.imageUrl} alt="" />}<div><span>{item.period}</span><h3>{item.degree}</h3><strong>{item.institution}</strong><p>{item.description}</p></div></article>)}
+              {content.education.map((item) => <article key={item.id}>{item.imageUrl && <img src={item.imageUrl} alt={`${item.degree} at ${item.institution}`} loading="lazy" decoding="async" />}<div><span>{item.period}</span><h3>{item.degree}</h3><strong>{item.institution}</strong><p>{item.description}</p></div></article>)}
             </div>
           )}
         </section>
 
         <section className="pf-contact" id="contact">
-          <motion.div className="pf-contact-copy" {...reveal}>
+          <motion.div className="pf-contact-copy" {...revealProps}>
             <div className="pf-section-label"><span />Let’s connect</div>
             <h2>Let’s build<br />what’s <em>next.</em></h2>
             <p>Tell me about your idea, your team, or the problem you want to solve. I’ll reply with a clear next step.</p>
@@ -403,17 +446,17 @@ export default function PortfolioSite() {
               <span><MapPin />{profile.location}</span>
             </div>
           </motion.div>
-          <motion.form className="pf-contact-form" onSubmit={sendMessage} {...reveal}>
+          <motion.form className="pf-contact-form" onSubmit={sendMessage} aria-busy={contactState === 'sending'} aria-describedby={contactState === 'idle' || contactState === 'sending' ? undefined : 'contact-form-status'} {...revealProps}>
             <div className="pf-form-row">
-              <label>Your name<input name="name" required placeholder="Your name" /></label>
-              <label>Email address<input name="email" type="email" required placeholder="you@example.com" /></label>
+              <label htmlFor="contact-name">Your name<input id="contact-name" name="name" type="text" autoComplete="name" required placeholder="Your name" /></label>
+              <label htmlFor="contact-email">Email address<input id="contact-email" name="email" type="email" autoComplete="email" inputMode="email" required placeholder="you@example.com" /></label>
             </div>
-            <label>Project type<select name="projectType" defaultValue=""><option value="" disabled>Select a project type</option><option>Website or web application</option><option>AI or machine learning</option><option>IT consultancy</option><option>Something else</option></select></label>
-            <label>Tell me about your project<textarea name="message" required rows={5} placeholder="A few details about your idea, goals, and timeline…" /></label>
+            <label htmlFor="contact-project-type">Project type<select id="contact-project-type" name="projectType" defaultValue=""><option value="" disabled>Select a project type</option><option>Website or web application</option><option>AI or machine learning</option><option>IT consultancy</option><option>Something else</option></select></label>
+            <label htmlFor="contact-message">Tell me about your project<textarea id="contact-message" name="message" required rows={5} placeholder="A few details about your idea, goals, and timeline…" /></label>
             <button className="pf-button pf-button-accent" type="submit" disabled={contactState === 'sending'}>
               {contactState === 'sending' ? 'Sending…' : contactState === 'sent' ? <><Check /> Message sent</> : <>Send message <ArrowUpRight /></>}
             </button>
-            <div className="pf-form-status" aria-live="polite" aria-atomic="true">
+            <div className="pf-form-status" id="contact-form-status" aria-live="polite" aria-atomic="true">
               {contactState === 'sent' && <p>Your message was sent successfully.</p>}
               {contactState === 'error' && <p className="pf-form-error">The message could not be sent. Please email me directly.</p>}
             </div>
@@ -425,11 +468,11 @@ export default function PortfolioSite() {
         <div><a className="pf-brand" href="#top" onClick={(event) => { event.preventDefault(); scrollTo('top'); }}><span>AI</span><strong>{profile.name}</strong></a><p>Building intelligent digital products that solve real problems.</p></div>
         <nav>{navigation.map(([label, id]) => <a key={id} href={`#${id}`} onClick={(event) => { event.preventDefault(); scrollTo(id); }}>{label}</a>)}</nav>
         <div className="pf-socials"><a href={profile.github} target="_blank" rel="noreferrer" aria-label="GitHub"><Github /></a><a href={profile.linkedin} target="_blank" rel="noreferrer" aria-label="LinkedIn"><Linkedin /></a><a href={`mailto:${profile.email}`} aria-label="Email"><Mail /></a></div>
-        <div className="pf-footer-bottom"><span>© {new Date().getFullYear()} {profile.name}</span><a href="/admin">Admin</a><button type="button" onClick={() => scrollTo('top')}>Back to top <ArrowUp /></button></div>
+        <div className="pf-footer-bottom"><span>© {new Date().getFullYear()} {profile.name}</span><a href="/admin">Admin</a><button type="button" onClick={() => scrollTo('top')} aria-label="Back to top">Back to top <ArrowUp /></button></div>
       </footer>
 
       <a className="pf-whatsapp" href={`https://wa.me/${profile.whatsapp}`} target="_blank" rel="noreferrer" aria-label="Chat on WhatsApp"><MessageCircle /></a>
-      <AnimatePresence>{selectedProject && <ProjectModal project={selectedProject} onClose={() => setSelectedProject(null)} />}</AnimatePresence>
+      <AnimatePresence>{selectedProject && <ProjectModal project={selectedProject} onClose={closeProject} />}</AnimatePresence>
     </div>
   );
 }
